@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
+from copy import copy
 
 import warnings
 
@@ -18,9 +19,11 @@ class PhysicsInformedNeuralNetwork(nn.Module):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # self.device = torch.device('cpu')
         print("Current device:", self.device)
+        self.lr = lr
         
     def u(self, x, t):
-        return np.sin(np.pi * x) * np.exp(-np.pi * np.pi * t)
+        # return np.sin(np.pi * x) * np.exp(-np.pi * np.pi * t)
+        return 6 * np.exp(-3 * x - 2 * t)
 
     def make_training_initial_data(self, x_i_size, seed=2021):
         torch.manual_seed(seed)
@@ -37,7 +40,8 @@ class PhysicsInformedNeuralNetwork(nn.Module):
         torch.manual_seed(seed)
         x_x = [torch.rand(1) for _ in range(x_b_size)]
         x_b = [torch.tensor((x, 0.0), requires_grad=True) for x in x_x]
-        u_b = [torch.tensor((np.sin(np.pi * x)), requires_grad=True) for x in x_x]
+        # u_b = [torch.tensor((np.sin(np.pi * x)), requires_grad=True) for x in x_x]
+        u_b = [torch.tensor((6 * np.exp(-3 * x)), requires_grad=True) for x in x_x]
 
         x = torch.stack(x_b)
         u = torch.stack(u_b)
@@ -89,7 +93,7 @@ class PhysicsInformedNeuralNetwork(nn.Module):
             loss += self.loss_function(pred, label)
             cnt += 1
         return (loss / cnt)
-    
+     
     def loss_b(self, output, y):
         loss = 0.0
         cnt = 0
@@ -118,23 +122,27 @@ class PhysicsInformedNeuralNetwork(nn.Module):
         # print(u_hat_t)
         # print(u_hat_xx)
 
-        
-        loss = self.loss_function(u_hat_xx, u_hat_t)
+        f = u_hat_x - 2 * u_hat_t - u_hat
+        loss = self.loss_function(f, y)
 
         return loss
     
-    def train(self, epochs=100, lr=0.01):
+    def train(self, epochs=20000):
         
-        model = nn.Sequential(nn.Linear(2, 10),
-                                    nn.Sigmoid(),
-                                    nn.Linear(10, 10),
-                                    nn.Sigmoid(),
-                                    nn.Linear(10, 10),
-                                    nn.Sigmoid(),
-                                    nn.Linear(10, 1),
-                                    nn.Sigmoid())
+        model = nn.Sequential(nn.Linear(2, 5),
+                              nn.Sigmoid(),
+                              nn.Linear(5, 5),
+                              nn.Sigmoid(),
+                              nn.Linear(5, 5),
+                              nn.Sigmoid(),
+                              nn.Linear(5, 5),
+                              nn.Sigmoid(),
+                              nn.Linear(5, 5),
+                              nn.Sigmoid(),
+                              nn.Linear(5, 1))
 
-        optim = torch.optim.Adam(model.parameters(), lr=lr)
+
+        optim = torch.optim.Adam(model.parameters(), lr=self.lr)
 
         model.to(self.device)
 
@@ -143,7 +151,7 @@ class PhysicsInformedNeuralNetwork(nn.Module):
 
         in_train_i, u_train_i    = self.make_training_initial_data(500)
         in_train_b, u_train_b    = self.make_training_boundary_data(500)
-        in_train_f               = self.make_training_functional_data(100000)
+        in_train_f               = self.make_training_functional_data(10000)
         in_test, u_test          = self.make_test_data(1000)
         u_train_f                = torch.zeros(in_train_f.shape)
 
@@ -179,31 +187,46 @@ class PhysicsInformedNeuralNetwork(nn.Module):
         #     ot.backward()
         #     print(input.grad)
             
-
+        loss_save = np.inf 
         for n, epoch in enumerate(range(epochs)):
-            
+            optim.zero_grad()
+
             loss_i = self.calc_loss(loader_train_i, self.loss_i, model)
             loss_b = self.calc_loss(loader_train_b, self.loss_b, model)
             loss_f = self.calc_loss_f(loader_train_f, model)
 
-            loss = loss_i + loss_b + loss_f
+            # loss = loss_i + loss_b + loss_f
+            loss = loss_i
             loss.backward(retain_graph=True)
-
+            
+            
+            
+            
             optim.step()
 
             with torch.no_grad():
                 model.eval()
+
                 
-                loss_test = self.calc_loss(loader_test, self.loss_i, model)
+                loss_test = self.calc_loss(loader_test, self.loss_i, model).cpu().numpy()
 
-                print("Epoch: {0} | LOSS_I: {1:.4f} | LOSS_B: {2:.4f} | LOSS_F: {3:.8f} | LOSS_TEST: {4:.4f}".format(epoch + 1, loss_i, loss_b, loss_f, loss_test))
-
+                if loss < loss_save:
+                    best_epoch = epoch
+                    loss_save = copy(loss)
+                    torch.save(model.state_dict(), './models/model.data')
+                    print(".......model updated (epoch = ", epoch+1, ")")
+                # print("Epoch: {} | LOSS_TOTAL: {:.8f} | LOSS_TEST: {:.4f}".format(epoch + 1, loss, loss_test))
+                print("Epoch: {0} | LOSS_I: {1:.4f} | LOSS_B: {2:.4f} | LOSS_F: {3:.8f} | LOSS_TOTAL: {4:.8f} | LOSS_TEST: {5:.4f}".format(epoch + 1, loss_i, loss_b, loss_f, loss, loss_test))
+                # print("Epoch: {0} | LOSS: {1:.4f} | LOSS_F: {2:.8f} | LOSS_TEST: {3:.4f}".format(epoch + 1, loss_i + loss_b, loss_f, loss_test))
+        
+        print("Best epoch: ", best_epoch)
+        print("Best loss: ", loss_save)
         print("Done!") 
         
 
           
         
         
-u_hat = PhysicsInformedNeuralNetwork(lr=0.2)
+u_hat = PhysicsInformedNeuralNetwork(lr=0.01)
 u_hat.train()
 
