@@ -151,13 +151,17 @@ def train(epochs=100000):
     optim = torch.optim.Adam(model.parameters())
 
     x_b, u_b = make_training_boundary_data(b_size)
+    x_b_2, u_b_2 = make_training_boundary_data(b_size, weight=1)
     x_f, u_f = make_training_collocation_data(f_size)
     x_t, u_t = make_test_data(t_size)
+
+    x_b = np.concatenate((x_b, x_b_2))
+    u_b = np.concatenate((u_b, u_b_2))
 
     scaler_x = MinMaxScaler()
     scaler_u = MinMaxScaler()
 
-    scaler_x.fit(x_b)
+    scaler_x.fit(x_f)
     scaler_u.fit(u_b)
 
     # x_i = scaler_x.transform(x_i)
@@ -173,6 +177,7 @@ def train(epochs=100000):
     # u_f = scaler_u.transform(u_f)
     # u_t = scaler_u.transform(u_t)
 
+    # print(u_b)
     x_b = make_tensor(x_b).to(device)
     u_b = make_tensor(u_b, requires_grad=False).to(device)
     x_f = make_tensor(x_f).to(device)
