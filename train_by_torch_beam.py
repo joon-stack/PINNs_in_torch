@@ -14,12 +14,12 @@ class PINN(nn.Module):
     def __init__(self):
         super(PINN, self).__init__()
 
-        self.hidden_layer1    = nn.Linear(1, 5)
-        self.hidden_layer2    = nn.Linear(5, 5)
-        self.hidden_layer3    = nn.Linear(5, 5)
-        self.hidden_layer4    = nn.Linear(5, 5)
-        self.hidden_layer5    = nn.Linear(5, 5)
-        self.output_layer     = nn.Linear(5, 1)
+        self.hidden_layer1    = nn.Linear(1, 10)
+        self.hidden_layer2    = nn.Linear(10, 10)
+        self.hidden_layer3    = nn.Linear(10, 10)
+        self.hidden_layer4    = nn.Linear(10, 10)
+        self.hidden_layer5    = nn.Linear(10, 10)
+        self.output_layer     = nn.Linear(10, 1)
 
     def forward(self, x):
         input_data     = x
@@ -39,6 +39,7 @@ class PINN(nn.Module):
 
 def u(x):
     value = x / 24 * (1 - x) * (1 + x - x * x)
+    # value = 0.5 * x * (x - 1)
     return value
 
 # def make_training_initial_data(i_size, seed=1004):
@@ -107,6 +108,7 @@ def make_test_data(t_size, seed=1004):
 def calc_loss_f(x, y, model, func):
     u_hat = model(x)
 
+
     u_hat_x     = autograd.grad(u_hat.sum(), x, create_graph=True)[0]
     # u_hat_t     = autograd.grad(u_hat.sum(), t, create_graph=True)[0]
     u_hat_x_x   = autograd.grad(u_hat_x.sum(), x, create_graph=True)[0]
@@ -118,6 +120,18 @@ def calc_loss_f(x, y, model, func):
     # f = u_hat_t_t - 4 * u_hat_x_x
 
     return func(f, y) 
+
+def calc_loss_deriv(x, y, model, func):
+    u_hat = model(x)
+
+
+    u_hat_x     = autograd.grad(u_hat.sum(), x, create_graph=True)[0]
+    # u_hat_t     = autograd.grad(u_hat.sum(), t, create_graph=True)[0]
+    u_hat_x_x   = autograd.grad(u_hat_x.sum(), x, create_graph=True)[0]
+
+    f = u_hat_x_x
+
+    return func(f, y)
 
 def normalize(x):
     max_x = x.max()
@@ -158,11 +172,11 @@ def train(epochs=100000):
     x_b = np.concatenate((x_b, x_b_2))
     u_b = np.concatenate((u_b, u_b_2))
 
-    scaler_x = MinMaxScaler()
-    scaler_u = MinMaxScaler()
+    # scaler_x = MinMaxScaler()
+    # scaler_u = MinMaxScaler()
 
-    scaler_x.fit(x_f)
-    scaler_u.fit(u_b)
+    # scaler_x.fit(x_f)
+    # scaler_u.fit(u_b)
 
     # x_i = scaler_x.transform(x_i)
     # x_b = scaler_x.transform(x_b)
@@ -220,6 +234,9 @@ def train(epochs=100000):
 
         loss_b = loss_func(pred_b, u_b)
         loss_f = calc_loss_f(x_f, u_f, model, loss_func)
+        loss_b_2 = calc_loss_deriv(x_b, u_b, model, loss_func)
+
+        loss_b += loss_b_2
 
 
         # print(deriv_i, u_i_2)       
@@ -246,7 +263,7 @@ def train(epochs=100000):
                 torch.save(model.state_dict(), './models/model.data')
                 print(".......model updated (epoch = ", epoch+1, ")")
             # print("Epoch: {} | LOSS_TOTAL: {:.8f} | LOSS_TEST: {:.4f}".format(epoch + 1, loss, loss))
-            print("Epoch: {0} | LOSS_B: {1:.4f} | LOSS_F: {2:.4f} | LOSS_TOTAL: {3:.4f} | LOSS_TEST: {4:.4f}".format(epoch + 1,  loss_b, loss_f, loss, loss_t))
+            print("Epoch: {0} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} | LOSS_TEST: {4:.8f}".format(epoch + 1,  loss_b, loss_f, loss, loss_t))
             # print("Epoch: {0} | LOSS: {1:.4f} | LOSS_F: {2:.8f} | LOSS_TEST: {3:.4f}".format(epoch + 1, loss_i + loss_b, loss_f, loss_test))
         
     print("Best epoch: ", best_epoch)
