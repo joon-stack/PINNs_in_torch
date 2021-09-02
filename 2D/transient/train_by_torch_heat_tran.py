@@ -154,10 +154,12 @@ def make_tensor(x, requires_grad=True):
 
     return t
 
-def train(epochs=100000):
-    i_size = 2000
-    b_size = 2000
-    f_size = 2000
+def train(epochs=10000):
+    since = time.time()
+
+    i_size = 200
+    b_size = 200
+    f_size = 200
     t_size = 500
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -168,14 +170,14 @@ def train(epochs=100000):
     model.to(device)
     model = nn.DataParallel(model)
 
-    optim = torch.optim.Adam(model.parameters())
+    optim = torch.optim.Adam(model.parameters(), lr=0.01)
 
     x_i, y_i, t_i, u_i = make_training_initial_data(i_size)
 
     x_b, y_b, t_b, u_b = make_training_boundary_data_x(b_size)
     x_b_2, y_b_2, t_b_2, u_b_2 = make_training_boundary_data_x(b_size, y=1.0)
 
-    x_b_3, y_b_3, t_b_3, u_b_3 = make_training_boundary_data_y(b_size)
+    x_b_3, y_b_3, t_b_3, u_b_3 = make_training_boundary_data_y(b_size, u=0.0)
     x_b_4, y_b_4, t_b_4, u_b_4 = make_training_boundary_data_y(b_size, x=1.0, u=1.0)
 
     x_f, y_f, t_f, u_f = make_training_collocation_data(f_size)
@@ -313,6 +315,7 @@ def train(epochs=100000):
         
     print("Best epoch: ", best_epoch)
     print("Best loss: ", loss_save)
+    print("Elapsed time: {:.3f} s".format(time.time() - since))
     print("Done!") 
 
         

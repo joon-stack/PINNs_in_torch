@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from train_by_torch_heat import *
+from train_by_torch_beam import *
 
 import matplotlib.pyplot as plt
 
@@ -44,20 +44,20 @@ def draw():
 
     model.to(device)
 
-    # x_test = torch.from_numpy(np.arange(10001)/500).type(torch.FloatTensor)
+    x_test = torch.from_numpy(np.arange(10001)/10000).type(torch.FloatTensor)
     # y_test = torch.from_numpy(np.arange(10001)/1000).type(torch.FloatTensor)
     # # u_test = u(x_test)
 
     # x_fig = x_test.unsqueeze(0).T
     # y_fig = y_test.unsqueeze(0).T
-    x, y = np.mgrid[0:1.01:0.01, 0:1.01:0.01]
-    xy = torch.from_numpy(np.vstack((x.flatten(), y.flatten()))).type(torch.FloatTensor)
+    # x, y = np.mgrid[0:1.01:0.01, 0:1.01:0.01]
+    # xy = torch.from_numpy(np.vstack((x.flatten(), y.flatten()))).type(torch.FloatTensor)
 
-    pred = model(xy[0].unsqueeze(0).T, xy[1].unsqueeze(0).T)
+    pred = model(x_test.unsqueeze(0).T)
 
     pred = pred.detach().numpy()
     
-    plt.scatter(x, y, c=pred, cmap='Spectral')
+    plt.scatter(x_test, pred )
     plt.colorbar()
     plt.savefig('./figures/fig4.png')
 

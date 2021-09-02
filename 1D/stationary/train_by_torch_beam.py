@@ -7,6 +7,8 @@ import numpy as np
 import time
 from sklearn.preprocessing import MinMaxScaler
 
+import time
+
 
 from copy import copy
 
@@ -55,11 +57,11 @@ def u(x):
 
 #     return x_i, t_i, u_i
 
-def make_training_boundary_data(b_size, seed=1004, weight=0):
+def make_training_boundary_data(b_size, x=0.0, u=0.0, seed=1004):
     np.random.seed(seed)
 
-    x_b = np.ones((b_size, 1)) * weight
-    u_b = np.zeros((b_size, 1))
+    x_b = np.ones((b_size, 1)) * x
+    u_b = np.ones((b_size, 1)) * u
 
     return x_b, u_b
 
@@ -74,10 +76,10 @@ def make_training_boundary_data(b_size, seed=1004, weight=0):
 
 #     return x_b, t_b, u_b
 
-def make_training_collocation_data(f_size, seed=1004):
+def make_training_collocation_data(f_size, x_lb=0.0, x_hb=1.0, seed=1004):
     np.random.seed(seed)
 
-    x_f = np.random.uniform(low=0.0, high=1.0, size=(f_size, 1))
+    x_f = np.random.uniform(low=x_lb, high=x_hb, size=(f_size, 1))
     u_f = np.zeros((f_size, 1))
 
     return x_f, u_f
@@ -150,7 +152,8 @@ def make_tensor(x, requires_grad=True):
 
     return t
 
-def train(epochs=100000):
+def train(epochs=10000):
+    since = time.time()
     b_size = 500
     f_size = 500
     t_size = 500
@@ -163,12 +166,13 @@ def train(epochs=100000):
     model.to(device)
     model = nn.DataParallel(model)
 
-    optim = torch.optim.Adam(model.parameters())
+    optim = torch.optim.Adam(model.parameters(), lr=0.01)
 
-    x_b, u_b = make_training_boundary_data(b_size)
-    x_b_2, u_b_2 = make_training_boundary_data(b_size, weight=1)
+    x_b, u_b = make_training_boundary_data(b_size, x=0.0, u=0.0)
+    x_b_2, u_b_2 = make_training_boundary_data(b_size, x=0.5, u=0.0)
+    x_b_3, u_b_3 = make_training_boundary_data(b_size, x=1.0, u=0.0)
     x_f, u_f = make_training_collocation_data(f_size)
-    x_t, u_t = make_test_data(t_size)
+    # x_t, u_t = make_test_data(t_size)
 
     # x_b = np.concatenate((x_b, x_b_2))
     # u_b = np.concatenate((u_b, u_b_2))
@@ -197,11 +201,14 @@ def train(epochs=100000):
     u_b = make_tensor(u_b, requires_grad=False).to(device)
     x_f = make_tensor(x_f).to(device)
     u_f = make_tensor(u_f, requires_grad=False).to(device)
-    x_t = make_tensor(x_t, requires_grad=False).to(device)
-    u_t = make_tensor(u_t, requires_grad=False).to(device)
+    # x_t = make_tensor(x_t, requires_grad=False).to(device)
+    # u_t = make_tensor(u_t, requires_grad=False).to(device)
 
     x_b_2 = make_tensor(x_b_2).to(device)
     u_b_2 = make_tensor(u_b_2, requires_grad=True).to(device)
+    x_b_3 = make_tensor(x_b_3).to(device)
+    u_b_3 = make_tensor(u_b_3, requires_grad=True).to(device)
+    
 
 
 
@@ -225,8 +232,7 @@ def train(epochs=100000):
 
     for epoch in range(epochs):
         optim.zero_grad()
-        pred_b = model(x_b)
-        pred_t = model(x_t)
+        loss_b = 0.0
 
         # pred_i, max_i, min_i = normalize(pred_i)
         # pred_b, max_b, min_b = normalize(pred_b)
@@ -234,16 +240,14 @@ def train(epochs=100000):
   
         # deriv_i  = autograd.grad(pred_i.sum(), t_i, create_graph=True)[0]
 
-        
-
         loss_func = nn.MSELoss()
 
-        loss_b = loss_func(pred_b, u_b)
-        loss_b += loss_func(calc_deriv(x_b, pred_b, 1), u_b)
-        u_hat_x_x = calc_deriv(x_b_2, model(x_b_2), 2)
-        u_hat_x_x_x = calc_deriv(x_b_2, u_hat_x_x, 1)
-        loss_b += loss_func(u_hat_x_x, u_b_2)
-        loss_b += loss_func(u_hat_x_x_x, u_b_2)
+        loss_b += loss_func(model(x_b), u_b)
+        loss_b += loss_func(model(x_b_2), u_b_2)
+        loss_b += loss_func(model(x_b_3), u_b_3)
+        loss_b += loss_func(calc_deriv(x_b, model(x_b), 2), u_b)
+        # loss_b += loss_func(calc_deriv(x_b_2, model(x_b_2), 2), u_b_2)
+        loss_b += loss_func(calc_deriv(x_b_3, model(x_b_3), 2), u_b_3)
 
 
         loss_f = calc_loss_f(x_f, u_f, model, loss_func)
@@ -265,7 +269,7 @@ def train(epochs=100000):
         with torch.no_grad():
             model.eval()
                 
-            loss_t = loss_func(pred_t, u_t)
+            # loss_t = loss_func(pred_t, u_t)
 
             if loss < loss_save:
                 best_epoch = epoch
@@ -273,11 +277,12 @@ def train(epochs=100000):
                 torch.save(model.state_dict(), './models/model.data')
                 print(".......model updated (epoch = ", epoch+1, ")")
             # print("Epoch: {} | LOSS_TOTAL: {:.8f} | LOSS_TEST: {:.4f}".format(epoch + 1, loss, loss))
-            print("Epoch: {0} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} | LOSS_TEST: {4:.8f}".format(epoch + 1,  loss_b, loss_f, loss, loss_t))
+            print("Epoch: {0} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} | LOSS_TEST: {4:.8f}".format(epoch + 1,  loss_b, loss_f, loss, loss))
             # print("Epoch: {0} | LOSS: {1:.4f} | LOSS_F: {2:.8f} | LOSS_TEST: {3:.4f}".format(epoch + 1, loss_i + loss_b, loss_f, loss_test))
         
     print("Best epoch: ", best_epoch)
     print("Best loss: ", loss_save)
+    print("Elapsed time: {:.3f} s".format(time.time() - since))
     print("Done!") 
 
         

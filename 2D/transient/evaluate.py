@@ -32,7 +32,7 @@ def draw():
     # y_fig = y_test.unsqueeze(0).T
     x, y = np.mgrid[0:1.01:0.01, 0:1.01:0.01]
     xy = torch.from_numpy(np.vstack((x.flatten(), y.flatten()))).type(torch.FloatTensor)
-    t = torch.from_numpy(np.ones(xy[0].shape) * 1).type(torch.FloatTensor)
+    t = torch.from_numpy(np.ones(xy[0].shape) * 0).type(torch.FloatTensor)
 
     pred = model(xy[0].unsqueeze(0).T, xy[1].unsqueeze(0).T, t.unsqueeze(0).T)
 
@@ -40,7 +40,7 @@ def draw():
     
     plt.scatter(x, y, c=pred, cmap='Spectral')
     plt.colorbar()
-    plt.savefig('./figures/fig1.png')
+    plt.savefig('./figures/fig2.png')
 
 if __name__ == "__main__":
     # evaluate()

@@ -6,7 +6,7 @@ import torch.autograd as autograd
 import numpy as np
 import time
 from sklearn.preprocessing import MinMaxScaler
-
+from torch.utils.data import DataLoader
 
 from copy import copy
 
@@ -55,21 +55,22 @@ def u(x):
 
 #     return x_i, t_i, u_i
 
-def make_training_boundary_data_x(b_size, seed=1004, weight=0, value=0):
+def make_training_boundary_data_x(b_size, x_lb=0.0, x_hb=1.0, y=0.0, u=0.0, seed=1004):
     np.random.seed(seed)
 
-    x_b = np.random.uniform(low=0.0, high=2.0, size=(b_size, 1))
-    y_b = np.ones((b_size, 1)) * weight
-    u_b = np.ones((b_size, 1)) * value
+    x_b = np.random.uniform(low=x_lb, high=x_hb, size=(b_size, 1))
+    y_b = np.ones((b_size, 1)) * y
+    u_b = np.ones((b_size, 1)) * u
 
     return x_b, y_b, u_b
 
-def make_training_boundary_data_y(b_size, seed=1004, weight=0, value=1):
+def make_training_boundary_data_y(b_size, y_lb=0.0, y_hb=1.0, x=0.0, u=0.0, seed=1004):
     np.random.seed(seed)
 
-    x_b = np.ones((b_size, 1)) * weight
-    y_b = np.random.uniform(low=0.0, high=1.0, size=(b_size, 1))
-    u_b = np.ones((b_size, 1)) * value
+    y_b = np.random.uniform(low=y_lb, high=y_hb, size=(b_size, 1))
+    x_b = np.ones((b_size, 1)) * x
+    u_b = np.ones((b_size, 1)) * u
+
 
     return x_b, y_b, u_b
 
@@ -85,11 +86,11 @@ def make_training_boundary_data_y(b_size, seed=1004, weight=0, value=1):
 
 #     return x_b, t_b, u_b
 
-def make_training_collocation_data(f_size, seed=1004):
+def make_training_collocation_data(f_size, x_lb=0.0, x_hb=1.0, y_lb=0.0, y_hb=1.0, seed=1004):
     np.random.seed(seed)
 
-    x_f = np.random.uniform(low=0.0, high=2.0, size=(f_size, 1))
-    y_f = np.random.uniform(low=0.0, high=1.0, size=(f_size, 1))
+    x_f = np.random.uniform(low=x_lb, high=x_hb, size=(f_size, 1))
+    y_f = np.random.uniform(low=y_lb, high=y_hb, size=(f_size, 1))
     u_f = np.zeros((f_size, 1))
 
     return x_f, y_f, u_f
@@ -148,8 +149,11 @@ def make_tensor(x, requires_grad=True):
 
     return t
 
-def train(epochs=100000):
-    b_size = 10000
+def make_dataset(x, y, u):
+    xyu = torch.cat((x, y, u), axis=1)
+    return xyu
+def train(epochs=1):
+    b_size = 2000
     f_size = 2000
     t_size = 500
 
@@ -161,13 +165,13 @@ def train(epochs=100000):
     model.to(device)
     model = nn.DataParallel(model)
 
-    optim = torch.optim.Adam(model.parameters())
+    optim = torch.optim.Adam(model.parameters(), lr=0.01)
 
-    x_b, y_b, u_b = make_training_boundary_data_y(b_size, weight=0, value=20)
-    x_b_2, y_b_2, u_b_2 = make_training_boundary_data_y(b_size, weight=2, value=0)
+    x_b, y_b, u_b = make_training_boundary_data_y(b_size, u=1)
+    x_b_2, y_b_2, u_b_2 = make_training_boundary_data_y(b_size, x=1, u=0)
 
-    x_b_3, y_b_3, u_b_3 = make_training_boundary_data_x(b_size, weight=0, value=0)
-    x_b_4, y_b_4, u_b_4 = make_training_boundary_data_x(b_size, weight=1, value=0)
+    x_b_3, y_b_3, u_b_3 = make_training_boundary_data_x(b_size, y=0)
+    x_b_4, y_b_4, u_b_4 = make_training_boundary_data_x(b_size, y=1)
 
     x_f, y_f, u_f = make_training_collocation_data(f_size)
     # x_t, u_t = make_test_data(t_size)
@@ -198,6 +202,9 @@ def train(epochs=100000):
     x_b = make_tensor(x_b).to(device)
     y_b = make_tensor(y_b).to(device)
     u_b = make_tensor(u_b, requires_grad=False).to(device)
+
+    xyu = torch.cat([x_b, y_b, u_b], axis=1)
+    print(xyu.shape)
     
     x_f = make_tensor(x_f).to(device)
     y_f = make_tensor(y_f).to(device)
@@ -218,6 +225,11 @@ def train(epochs=100000):
     y_b_4 = make_tensor(y_b_4).to(device)
     u_b_4 = make_tensor(u_b_4, requires_grad=True).to(device)
 
+    
+    loader = DataLoader(x_b, batch_size=16, shuffle=True)
+    print(loader)
+    # for batch, data in enumerate(loader, 1):
+    #     print(data)
 
 
     # x = torch.cat([x_i, x_b, x_f, x_t])
@@ -240,7 +252,6 @@ def train(epochs=100000):
 
     for epoch in range(epochs):
         optim.zero_grad()
-        pred_b = model(x_b, y_b)
         # pred_t = model(x_t)
 
         # pred_i, max_i, min_i = normalize(pred_i)
@@ -253,7 +264,8 @@ def train(epochs=100000):
 
         loss_func = nn.MSELoss()
 
-        loss_b = loss_func(pred_b, u_b)
+        # loss_b = loss_func(model(x_b, y_b), u_b)
+        loss_b = loss_func(calc_deriv(x_b, model(x_b, y_b), times=1), u_b)
         loss_b += loss_func(model(x_b_2, y_b_2), u_b_2)
 
         loss_b += loss_func(calc_deriv(y_b_3, model(x_b_3, y_b_3), times=1), u_b_3)
