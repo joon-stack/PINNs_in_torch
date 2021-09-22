@@ -139,6 +139,7 @@ def combine():
 
     plt.scatter(x_test, pred)
     plt.colorbar()
+    
     plt.savefig('./figures/forced_1.png')
 
 
