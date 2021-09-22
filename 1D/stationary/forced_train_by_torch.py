@@ -12,6 +12,9 @@ def distance(x):
 
     dist = torch.cat((torch.abs(x - 0), torch.abs(x - 0.5), torch.abs(x - 1.0)), 1)
     dist = torch.min(dist, 1).values
+
+    if dist.ndim < 2:
+        dist = torch.unsqueeze(dist, 1)
     
 
     return dist
@@ -130,28 +133,21 @@ def combine():
     nn_1.to(device)
     nn_2.to(device)
 
-    x_test = torch.from_numpy(np.arange(10001)/10000).type(torch.FloatTensor)
+    x_test = torch.from_numpy(np.arange(10001)/10000).type(torch.FloatTensor).unsqueeze(0).T
 
-    pred = nn_1(x_test.unsqueeze(0).T) + nn_2(x_test.unsqueeze(0).T) * distance(x_test.unsqueeze(0).T)
-    pred = distance(x_test.unsqueeze(0).T)
+
+
+    pred = nn_1(x_test) + torch.mul(nn_2(x_test), distance(x_test))
+    # pred = distance(x_test)
 
     pred = pred.detach().numpy()
 
     plt.scatter(x_test, pred)
     plt.colorbar()
-    
+
     plt.savefig('./figures/forced_1.png')
 
 
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
-    # forced_train()
-    combine()
+    forced_train()
+    # combine()
