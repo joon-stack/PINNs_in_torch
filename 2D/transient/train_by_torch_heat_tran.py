@@ -312,7 +312,9 @@ def train(epochs=10000):
             # print("Epoch: {} | LOSS_TOTAL: {:.8f} | LOSS_TEST: {:.4f}".format(epoch + 1, loss, loss))
             print("Epoch: {0} | LOSS_I: {5:.8f} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} | LOSS_TEST: {4:.8f}".format(epoch + 1,  loss_b, loss_f, loss, loss, loss_i))
             # print("Epoch: {0} | LOSS: {1:.4f} | LOSS_F: {2:.8f} | LOSS_TEST: {3:.4f}".format(epoch + 1, loss_i + loss_b, loss_f, loss_test))
-        
+
+            if loss < 0.00001:
+                break
     print("Best epoch: ", best_epoch)
     print("Best loss: ", loss_save)
     print("Elapsed time: {:.3f} s".format(time.time() - since))

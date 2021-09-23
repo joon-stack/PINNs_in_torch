@@ -16,12 +16,16 @@ class PINN(nn.Module):
     def __init__(self):
         super(PINN, self).__init__()
 
-        self.hidden_layer1    = nn.Linear(1, 10)
-        self.hidden_layer2    = nn.Linear(10, 10)
-        self.hidden_layer3    = nn.Linear(10, 10)
-        self.hidden_layer4    = nn.Linear(10, 10)
-        self.hidden_layer5    = nn.Linear(10, 10)
-        self.output_layer     = nn.Linear(10, 1)
+        # self.hidden_layer1    = nn.Linear(1, 50)
+        # # self.dropout_layer    = nn.Dropout(0.01)
+        # # self.hidden_layer2    = nn.Linear(50, 50)
+        # # self.hidden_layer3    = nn.Linear(50, 50)
+        # # self.hidden_layer4    = nn.Linear(50, 50)
+        # self.output_layer     = nn.Linear(50, 1)
+        self.hidden_layer1      = nn.Linear(1, 40)
+        self.hidden_layer2      = nn.Linear(40, 40)
+        self.hidden_layer3      = nn.Linear(40, 40)
+        self.output_layer       = nn.Linear(40, 1)
 
     def forward(self, x):
         input_data     = x
@@ -29,9 +33,8 @@ class PINN(nn.Module):
         a_layer1       = act_func(self.hidden_layer1(input_data))
         a_layer2       = act_func(self.hidden_layer2(a_layer1))
         a_layer3       = act_func(self.hidden_layer3(a_layer2))
-        a_layer4       = act_func(self.hidden_layer4(a_layer3))
-        a_layer5       = act_func(self.hidden_layer5(a_layer4))
-        out            = self.output_layer(a_layer5)
+        # a_layer4       = act_func(self.hidden_layer4(a_layer3))
+        out            = self.output_layer(a_layer3)
 
         return out
 
@@ -132,17 +135,6 @@ def calc_deriv(x, input, times):
         res = autograd.grad(res.sum(), x, create_graph=True)[0]
     return res
 
-def calc_loss_deriv(x, y, model, func):
-    u_hat = model(x)
-
-
-    u_hat_x     = autograd.grad(u_hat.sum(), x, create_graph=True)[0]
-    # u_hat_t     = autograd.grad(u_hat.sum(), t, create_graph=True)[0]
-    u_hat_x_x   = autograd.grad(u_hat_x.sum(), x, create_graph=True)[0]
-
-    f = u_hat_x_x
-
-    return func(f, y)
 
 def make_tensor(x, requires_grad=True):
     t = torch.from_numpy(x)
@@ -152,10 +144,10 @@ def make_tensor(x, requires_grad=True):
 
     return t
 
-def train(epochs=10000):
+def train(epochs=100000):
     since = time.time()
-    b_size = 500
-    f_size = 500
+    b_size = 5000
+    f_size = 5000
     t_size = 500
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -165,7 +157,7 @@ def train(epochs=10000):
     model = PINN()
     model.to(device)
     model = nn.DataParallel(model)
-
+    
     optim = torch.optim.Adam(model.parameters(), lr=0.01)
 
     x_b, u_b = make_training_boundary_data(b_size, x=0.0, u=0.0)
@@ -243,12 +235,13 @@ def train(epochs=10000):
         loss_func = nn.MSELoss()
 
         loss_b += loss_func(model(x_b), u_b)
-        loss_b += loss_func(model(x_b_2), u_b_2)
+        # loss_b += loss_func(model(x_b_2), u_b_2)
         loss_b += loss_func(model(x_b_3), u_b_3)
         loss_b += loss_func(calc_deriv(x_b, model(x_b), 2), u_b)
         # loss_b += loss_func(calc_deriv(x_b_2, model(x_b_2), 2), u_b_2)
         loss_b += loss_func(calc_deriv(x_b_3, model(x_b_3), 2), u_b_3)
 
+        # loss_b *= 1000
 
         loss_f = calc_loss_f(x_f, u_f, model, loss_func)
 
@@ -274,10 +267,15 @@ def train(epochs=10000):
             if loss < loss_save:
                 best_epoch = epoch
                 loss_save = copy(loss)
-                torch.save(model.state_dict(), './models/model.data')
+                torch.save(model.state_dict(), './models/model_single.data')
                 print(".......model updated (epoch = ", epoch+1, ")")
+                
             # print("Epoch: {} | LOSS_TOTAL: {:.8f} | LOSS_TEST: {:.4f}".format(epoch + 1, loss, loss))
             print("Epoch: {0} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} | LOSS_TEST: {4:.8f}".format(epoch + 1,  loss_b, loss_f, loss, loss))
+
+            if loss < 0.00001:
+                
+                break
             # print("Epoch: {0} | LOSS: {1:.4f} | LOSS_F: {2:.8f} | LOSS_TEST: {3:.4f}".format(epoch + 1, loss_i + loss_b, loss_f, loss_test))
         
     print("Best epoch: ", best_epoch)
