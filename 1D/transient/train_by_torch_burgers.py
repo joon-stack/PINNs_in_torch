@@ -17,6 +17,10 @@ class PINN(nn.Module):
         self.hidden_layer2    = nn.Linear(30, 30)
         self.hidden_layer3    = nn.Linear(30, 30)
         self.hidden_layer4    = nn.Linear(30, 30)
+        self.hidden_layer5    = nn.Linear(30, 30)
+        self.hidden_layer6    = nn.Linear(30, 30)
+        self.hidden_layer7    = nn.Linear(30, 30)
+        self.hidden_layer8    = nn.Linear(30, 30)
         self.output_layer     = nn.Linear(30, 1)
     
     def forward(self, x, t):
@@ -26,7 +30,11 @@ class PINN(nn.Module):
         a_layer2        = act_func(self.hidden_layer2(a_layer1))
         a_layer3        = act_func(self.hidden_layer3(a_layer2))
         a_layer4        = act_func(self.hidden_layer4(a_layer3))
-        out             = self.output_layer(a_layer4)
+        a_layer5        = act_func(self.hidden_layer2(a_layer4))
+        a_layer6        = act_func(self.hidden_layer3(a_layer5))
+        a_layer7        = act_func(self.hidden_layer4(a_layer6))
+        a_layer8        = act_func(self.hidden_layer4(a_layer7))
+        out             = self.output_layer(a_layer8)
 
         return out
 
@@ -67,7 +75,7 @@ def calc_loss_f(x, t, u, model, func):
 
     
 
-    f = u_hat_t + u * u_hat_x - 0.01 / pi * u_hat_x_x
+    f = u_hat_t + u_hat * u_hat_x - 0.01 / pi * u_hat_x_x
 
     return func(f, u)
 
@@ -83,9 +91,9 @@ def make_tensor(x, requires_grad=True):
     t.requires_grad=requires_grad
     return t
 
-def train(epochs=10000):
+def train(epochs=50000):
     b_size = 100
-    f_size = 100
+    f_size = 10000
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Current device:", device)
@@ -106,14 +114,19 @@ def train(epochs=10000):
     t_b_plt = np.concatenate((t_b, t_b_2, t_b_3))
     u_b_plt = np.concatenate((u_b, u_b_2, u_b_3))
 
+
     plt.figure(figsize=(6, 6))
     plt.scatter(x_b_plt, t_b_plt, marker='x', label='Boundary conditions')
     plt.scatter(x_f, t_f, marker='x', label='Computational domain')
     plt.xlabel('X')
     plt.ylabel('T')
     plt.legend(loc='lower right')
-
+    plt.colorbar()
     plt.savefig('./figures/sampled_data.png')
+
+    plt.cla()
+    plt.scatter(x_b, u_b)
+    plt.savefig('./figures/initial_condition.png')
 
     x_b = make_tensor(x_b_plt).to(device)
     t_b = make_tensor(t_b_plt).to(device)
@@ -146,7 +159,7 @@ def train(epochs=10000):
                 print(".......model updated (epoch = ", epoch+1, ")")
             print("Epoch: {0} | LOSS_B: {1:.8f} | LOSS_F: {2:.8f} | LOSS_TOTAL: {3:.8f} ".format(epoch + 1,  loss_b, loss_f, loss))
 
-            if loss < 0.00001:
+            if loss < 0.000001:
                 break
 
     print("Best epoch: ", best_epoch)
@@ -165,8 +178,6 @@ def draw(time):
 
     pred = model(xt[0].unsqueeze(0).T, xt[1].unsqueeze(0).T)
     pred = pred.detach().numpy()
-
-    output = np.vstack((t.flatten(), x.flatten(), pred.flatten()))
 
     plt.cla()
     plt.scatter(t, x, c=pred, cmap='Spectral')
