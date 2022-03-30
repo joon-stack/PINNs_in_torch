@@ -37,7 +37,7 @@ class PINN(nn.Module):
     def __call__(self, input):
         return self.forward(input)
 
-
+    # to modify governing equation, modify here
     def calc_loss_f(self, input, target):
         u_hat = self(input)
         x, t = input
@@ -54,7 +54,7 @@ class PINN(nn.Module):
     def calc_loss_by_tag(self, input, target, tag):
         loss = []
         loss_func = nn.MSELoss()
-        for inp, tar, t in zip(list(input, target, tag)):
+        for inp, tar, t in zip(input, target, tag):
             if t == 1:
                 loss.append(self.calc_loss_f(inp, tar))
             else:

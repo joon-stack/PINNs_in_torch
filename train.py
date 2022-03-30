@@ -27,13 +27,6 @@ class CustomDataset(Dataset):
         return input, u, tag
 
 
-
-    
-
-
-
-        
-
 def train(epochs=1000):
     i_size = 5
     b_size = 5
