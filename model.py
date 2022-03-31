@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.autograd as autograd
 import numpy as np
 import time
+
+
 from copy import copy
 from torchsummary import summary as summary_
 
@@ -38,28 +40,7 @@ class PINN(nn.Module):
         return self.forward(input)
 
     # to modify governing equation, modify here
-    def calc_loss_f(self, input, target):
-        u_hat = self(input)
-        x, t = input
-
-        u_hat_x     = autograd.grad(u_hat.sum(), x, create_graph=True)[0]
-        u_hat_t     = autograd.grad(u_hat.sum(), t, create_graph=True)[0]
-        u_hat_x_x   = autograd.grad(u_hat_x.sum(), x, create_graph=True)[0]
-
-        f = u_hat_t + u_hat * u_hat_x - (0.01/np.pi) * u_hat_x_x
-
-        func = nn.MSELoss()
-        return func(f, target)
-
-    def calc_loss_by_tag(self, input, target, tag):
-        loss = []
-        loss_func = nn.MSELoss()
-        for inp, tar, t in zip(input, target, tag):
-            if t == 1:
-                loss.append(self.calc_loss_f(inp, tar))
-            else:
-                loss.append(loss_func(inp, tar))
-        return torch.tensor(loss).float()
+    
     
 if __name__ == "__main__":
     a = PINN(5, 5)
