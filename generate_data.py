@@ -46,6 +46,8 @@ def generate_data(i_size, b_size, f_size):
     i_set = make_training_initial_data(i_size)
     b_set = make_training_boundary_data(b_size)
     f_set = make_training_domain_data(f_size)
+
+    return i_set, b_set, f_set
     
 
 

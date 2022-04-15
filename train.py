@@ -6,6 +6,8 @@ import time
 
 from torch.utils.data import DataLoader, Dataset
 
+import matplotlib.pyplot as plt
+
 
 from model import *
 from generate_data import *
@@ -28,48 +30,12 @@ class CustomDataset(Dataset):
         tag = self.tag[idx]
         return input, target, tag
 
-def calc_loss_f(model, input, target):
-    u_hat = model(input)
-    
-    deriv_1 = autograd.grad(u_hat.sum(), input, create_graph=True)
-    u_hat_x, u_hat_t = deriv_1[0]
-    deriv_2 = autograd.grad(u_hat_x.sum(), input, create_graph=True)
-    u_hat_x_x, _ = deriv_2[0]
-
-    # f = u_hat_t + u_hat * u_hat_x - (0.01/np.pi) * u_hat_x_x
-    f = u_hat_t - u_hat_x_x
-
-    func = nn.MSELoss()
-    return func(f, target)
-
-def calc_loss_by_tag(model, input, target, tag):
-    loss_i = 0
-    loss_b = 0
-    loss_f = 0
-
-    loss_func = nn.MSELoss()
-    for inp, tar, t in zip(input, target, tag):
-        if t == 1:
-            # print(calc_loss_f(model, inp, tar))
-            loss_f += calc_loss_f(model, inp, tar)
-        elif t == 0:
-            loss_b += loss_func(model(inp), tar)
-        else:
-            loss_i += loss_func(model(inp), tar)
-
-    if isinstance(loss_f, int):
-        loss_f = torch.zeros((1)).requires_grad_()
-    if isinstance(loss_b, int):
-        loss_b = torch.zeros((1)).requires_grad_()
-    if isinstance(loss_i, int):
-        loss_i = torch.zeros((1)).requires_grad_()
-    
-    return loss_i, loss_b, loss_f
-
 def train(epochs=1000):
+    batch_count = 1
+
     i_size = 500
     b_size = 500
-    f_size = 10000
+    f_size = 1000
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Current device:", device)
@@ -79,37 +45,50 @@ def train(epochs=1000):
     
     optim = torch.optim.Adam(model.parameters(), lr=0.1)
 
-    i_set = make_training_initial_data(i_size)
-    b_set = make_training_boundary_data(b_size)
-    f_set = make_training_domain_data(f_size)
+    i_set, b_set, f_set = generate_data(i_size, b_size, f_size)
 
-    inputs      = torch.cat((i_set[0], b_set[0], f_set[0]), axis=0).to(device)
-    targets     = torch.cat((i_set[1], b_set[1], f_set[1]), axis=0).to(device)
-    tags        = torch.cat((i_set[2], b_set[2], f_set[2]), axis=0).to(device)
 
-    loss_save = np.inf
+    dataset_train_initial  = CustomDataset(*i_set)
+    dataset_train_boundary = CustomDataset(*b_set)
+    dataset_train_domain   = CustomDataset(*f_set)
 
-    dataset_train = CustomDataset(inputs, targets, tags)
-    loader_train = DataLoader(dataset_train, batch_size=i_size + b_size + f_size, shuffle=True)
+    loader_train_initial   = DataLoader(dataset_train_initial,  batch_size=i_size // batch_count)
+    loader_train_boundary  = DataLoader(dataset_train_boundary, batch_size=b_size // batch_count)
+    loader_train_domain    = DataLoader(dataset_train_domain,   batch_size=f_size // batch_count)   
+    
+    loss_func = nn.MSELoss()
+
     for epoch in range(epochs):
         model.train()
         train_loss_i = []
         train_loss_b = []
         train_loss_f = []
-        train_loss = []
+        train_loss   = []
 
-        for batch, data in enumerate(loader_train, 1):
-            input, target, tag = data
-
+        for data_i, data_b, data_f in list(zip(loader_train_initial, loader_train_boundary, loader_train_domain)):
             optim.zero_grad()
-
-            loss_i, loss_b, loss_f = calc_loss_by_tag(model, input, target, tag)
             
-            loss_i = loss_i.to(device)
-            loss_b = loss_b.to(device)
-            loss_f = loss_f.to(device)
+            input_i, target_i, _ = data_i
+            input_b, target_b, _ = data_b
+            input_f, target_f, _ = data_f
+
+            input_i = input_i.to(device)
+            target_i = target_i.to(device)
+            input_b = input_b.to(device)
+            target_b = target_b.to(device)
+            input_f = input_f.to(device)
+            target_f = target_f.to(device)
+            
+            loss_i = loss_func(target_i, model(input_i))
+            loss_b = loss_func(target_b, model(input_b))
+            loss_f = model.calc_loss_f(input_f, target_f)
+
+            loss_i.to(device)
+            loss_b.to(device)
+            loss_f.to(device)
 
             loss = loss_i + loss_b + loss_f
+
             loss.backward()
 
             optim.step()
@@ -122,13 +101,11 @@ def train(epochs=1000):
         with torch.no_grad():
             model.eval()
             print("Epoch {0} | Loss_I: {1:.4f} | Loss_B: {2:.4f} | Loss_F: {3:.4f}".format(epoch, np.mean(train_loss_i), np.mean(train_loss_b), np.mean(train_loss_f)))
-            
+        
+    return train_loss_i, train_loss_b, train_loss_f, train_loss
 
 
 if __name__ == "__main__":
-    train()
-    # a = torch.tensor([[1, 2, 3], [4, 5, 6]]).float().requires_grad_(True)
-    # b = torch.tensor([[2], [4]]).float().requires_grad_(True)
-    # c = a * b
-    # d = autograd.grad(c.sum(), a)
-    # print(d)
+    metrics = train()
+
+    
