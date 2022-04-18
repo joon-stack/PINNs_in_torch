@@ -6,7 +6,6 @@ import time
 
 
 from copy import copy
-from torchsummary import summary as summary_
 
 class PINN(nn.Module):
     def __init__(self, neuron_num, layer_num):
@@ -28,7 +27,7 @@ class PINN(nn.Module):
     
     def forward(self, input):
         # input      = torch.cat([x, t], axis=1)
-        act_func        = nn.Sigmoid()
+        act_func        = nn.Tanh()
         
         tmp = input
         for layer in self.module1:
@@ -50,7 +49,7 @@ class PINN(nn.Module):
         u_hat_x_x = deriv_2[0][:, 0].reshape(-1, 1)
 
         # to modify governing equation, modify here
-        f = u_hat_t + u_hat * u_hat_x - (0.01/np.pi) * u_hat_x_x
+        f = u_hat_t + u_hat * u_hat_x - (0.005/np.pi) * u_hat_x_x
         # f = u_hat_t - u_hat_x_x
         func = nn.MSELoss()
         return func(f, target)
@@ -63,7 +62,6 @@ class PINN(nn.Module):
         loss_func = nn.MSELoss()
         for inp, tar, t in zip(input, target, tag):
             if t == 1:
-                # print(calc_loss_f(self, inp, tar))
                 loss_f += self.calc_loss_f(inp, tar)
             elif t == 0:
                 loss_b += loss_func(self(inp), tar)

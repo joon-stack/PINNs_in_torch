@@ -27,7 +27,7 @@ def make_training_initial_data(i_size):
     return [torch.cat([x_i, t_i], axis=1), u_i, tag]
 
 def make_training_boundary_data(b_size):
-    x_b = make_tensor(np.vstack((np.ones((b_size // 2, 1)), np.ones((b_size - b_size // 2, 1)))))
+    x_b = make_tensor(np.vstack(((-1) * np.ones((b_size // 2, 1)), np.ones((b_size - b_size // 2, 1)))))
     t_b = make_tensor(np.random.uniform(low=0.0, high=1.0, size=(b_size, 1)))
     u_b = make_tensor(np.zeros((b_size, 1)))
     tag = make_tensor(np.ones((b_size, 1)) * 0)

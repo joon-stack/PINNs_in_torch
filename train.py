@@ -30,7 +30,7 @@ class CustomDataset(Dataset):
         tag = self.tag[idx]
         return input, target, tag
 
-def train(epochs=1000):
+def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
     batch_count = 1
 
     i_size = 500
@@ -40,10 +40,14 @@ def train(epochs=1000):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Current device:", device)
 
-    model = PINN(5, 5)
+    model = PINN(20, 3)
+
+    if load:
+        model.load_state_dict(torch.load('saved.data'))
+
     model.to(device)
     
-    optim = torch.optim.Adam(model.parameters(), lr=0.1)
+    optim = torch.optim.Adam(model.parameters(), lr=lr)
 
     i_set, b_set, f_set = generate_data(i_size, b_size, f_size)
 
@@ -58,12 +62,16 @@ def train(epochs=1000):
     
     loss_func = nn.MSELoss()
 
+    train_loss_i = []
+    train_loss_b = []
+    train_loss_f = []
+    train_loss   = []
+
+    loss_save = np.inf
+
     for epoch in range(epochs):
         model.train()
-        train_loss_i = []
-        train_loss_b = []
-        train_loss_f = []
-        train_loss   = []
+        
 
         for data_i, data_b, data_f in list(zip(loader_train_initial, loader_train_boundary, loader_train_domain)):
             optim.zero_grad()
@@ -87,7 +95,7 @@ def train(epochs=1000):
             loss_b.to(device)
             loss_f.to(device)
 
-            loss = loss_i + loss_b + loss_f
+            loss = loss_i + loss_b * 10 + loss_f
 
             loss.backward()
 
@@ -100,12 +108,20 @@ def train(epochs=1000):
         
         with torch.no_grad():
             model.eval()
-            print("Epoch {0} | Loss_I: {1:.4f} | Loss_B: {2:.4f} | Loss_F: {3:.4f}".format(epoch, np.mean(train_loss_i), np.mean(train_loss_b), np.mean(train_loss_f)))
+            if loss_save > loss.item():
+                torch.save(model.state_dict(), 'burgers.data')
+                # print(".......model updated (epoch = ", epoch+1, ")")///
+                loss_save = loss.item()
+
+        if epoch % 100 == 99:
+            with torch.no_grad():
+                model.eval()
+                print("Epoch {0} | Loss_I: {1:.4f} | Loss_B: {2:.4f} | Loss_F: {3:.4f}".format(epoch + 1, np.mean(train_loss_i), np.mean(train_loss_b), np.mean(train_loss_f)))
         
-    return train_loss_i, train_loss_b, train_loss_f, train_loss
+    return train_loss_i, train_loss_b, train_loss_f, train_loss, model
 
 
 if __name__ == "__main__":
-    metrics = train()
+    metrics, model = train()
 
     
