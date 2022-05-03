@@ -40,6 +40,7 @@ class PINN(nn.Module):
 
     
     def calc_loss_f(self, input, target):
+        print(input)
         u_hat = self(input)
         
         deriv_1 = autograd.grad(u_hat.sum(), input, create_graph=True)

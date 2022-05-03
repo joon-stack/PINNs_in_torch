@@ -16,10 +16,9 @@ from utils import *
 from copy import copy
 
 class CustomDataset(Dataset):
-    def __init__(self, input, target, tag):
+    def __init__(self, input, target):
         self.input = input
         self.target = target
-        self.tag = tag
     
     def __len__(self):
         return self.input.shape[0]
@@ -27,10 +26,9 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         input = self.input[idx]
         target = self.target[idx]
-        tag = self.tag[idx]
-        return input, target, tag
+        return input, target
 
-def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
+def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False, zero_shot=False, z_list=None):
     batch_count = 1
 
     i_size = 500
@@ -42,6 +40,9 @@ def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
 
     model = PINN(20, 3)
 
+    if zero_shot:
+        model = PINN(20, 5)
+
     if load:
         model.load_state_dict(torch.load('saved.data'))
 
@@ -49,8 +50,9 @@ def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
     
     optim = torch.optim.Adam(model.parameters(), lr=lr)
 
-    i_set, b_set, f_set = generate_data(i_size, b_size, f_size)
-
+    if zero_shot:
+        for z in z_list:
+            i_set, b_set, f_set = generate_data(i_size, b_size, f_size, zero_shot, z)
 
     dataset_train_initial  = CustomDataset(*i_set)
     dataset_train_boundary = CustomDataset(*b_set)
@@ -76,9 +78,9 @@ def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
         for data_i, data_b, data_f in list(zip(loader_train_initial, loader_train_boundary, loader_train_domain)):
             optim.zero_grad()
             
-            input_i, target_i, _ = data_i
-            input_b, target_b, _ = data_b
-            input_f, target_f, _ = data_f
+            input_i, target_i = data_i
+            input_b, target_b = data_b
+            input_f, target_f = data_f
 
             input_i = input_i.to(device)
             target_i = target_i.to(device)
@@ -121,7 +123,8 @@ def train(epochs=1000, lr=0.1, i_size=500, b_size=500, f_size=1000, load=False):
     return train_loss_i, train_loss_b, train_loss_f, train_loss, model
 
 
+
 if __name__ == "__main__":
-    metrics, model = train()
+    metrics, model = train(zero_shot=True, z_list = np.array(0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1) / np.pi)
 
     
